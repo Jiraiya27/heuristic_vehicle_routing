@@ -4,7 +4,7 @@ export const logger = new (Logger)({
   level: 'error',
   transports: [
     new (transports.Console)({
-      colorize: true
-    })
-  ]
+      colorize: true,
+    }),
+  ],
 })
