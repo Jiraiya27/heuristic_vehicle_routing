@@ -46,11 +46,8 @@ interface Route {
 
 interface RelocateRoute extends Route {
   newSequence?: Array<number>,
-  newTotalDistance?: number
-}
-
-interface ExchangeRoute extends RelocateRoute {
-  nweWeightAvailable?: number
+  newTotalDistance?: number,
+  newWeightAvailable?: number,
 }
 
 interface WithinSwapped {
@@ -101,7 +98,32 @@ relocated.map(route => {
 })
 console.log('Relocated Swap Total Distance:', totalDistanceRelocated)
 console.log('Relocated:', relocated)
+fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated))
 
+const exchanged = exchange(allRoutes)
+let totalDistanceExchanged = 0
+exchanged.map(route => {
+  totalDistanceExchanged += route.newTotalDistance || route.totalDistance
+})
+console.log('Exchanged Total Distance:', totalDistanceExchanged)
+console.log('Exchanged:', exchanged)
+fs.writeFileSync(path.resolve(__dirname, '../client/test_files/exchanged.json'), JSON.stringify(exchanged))
+
+for (let i = 0; i < allRoutes.length; i++) {
+  const allRouteTotalDistance = allRoutes[i].totalDistance
+  const exchangedTotalDistance = exchanged[i].newTotalDistance || exchanged[i].totalDistance
+  if (allRouteTotalDistance === exchangedTotalDistance) console.log('Index:', i, 'EQUAL')
+  else if (allRouteTotalDistance < exchangedTotalDistance) {
+    console.log('Index:', i, 'ALL ROUTE')
+    console.log('All Route:', allRouteTotalDistance)
+    console.log('Exchanged:', exchangedTotalDistance)
+  }
+  else if (allRouteTotalDistance > exchangedTotalDistance) {
+    console.log('Index:', i, 'EXCHANGED')
+    console.log('All Route:', allRouteTotalDistance)
+    console.log('Exchanged:', exchangedTotalDistance)
+  }
+}
 
 function formatSchedule(schedule: Schedule_Data[], { sum }: Format_Options = { sum: false }) {
   const scheduleObject: Schedule_Object = {}
@@ -440,11 +462,8 @@ function populateWeightToSequence(sequence: number[]) {
 }
 
 // TODO: Accept param for maxSwapTimes
-// Defaults to max
-// TODO: Question: Does it potentially leave out best possible route?
-// e.g. successful relocate will still continue on as if destination vehicle didn't pass
-// must be recursive and start again?
-// NOTE: ANSWER: Relocate success = go to next base vehicle's destination
+// TODO: Defaults to max
+// NOTE:Relocate success = go to next base vehicle's destination
 function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
   const maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4)
   let swapTimes = 0
@@ -452,15 +471,18 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
   baseVehicleLoop:
   // base vehicle to swap
   for (let i = 0; i < vehicles.length - 1; i++) {
-    let sequence = flattenRouteWithoutDepot(vehicles[i].route)
+    let sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route)
     let sequenceWithWeight = populateWeightToSequence(sequence)
     const baseVehicle = { ...vehicles[i], sequence }
     
-    // === skip over if length is 1 
+    // skip over if length is 1 
     if (sequence.length === 1) continue
 
     // each destination excluding DEPOT
     for (let j = 0; j < sequence.length; j++) {
+      // base vehicle distance can be changed after each destination ID
+      // therefore place in inner loop
+      const baseVehicleDistance = baseVehicle.newTotalDistance || baseVehicle.totalDistance
       // remove ID to put in other vehicle
       const baseSequenceCopy = [...sequence]
       const relocationBaseID = baseSequenceCopy.splice(j, 1)[0]
@@ -469,34 +491,44 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
       // the rest of the vehicles
       restOfVehiclesLoop:
       for(let k = i+1; k < vehicles.length; k++) {
-        let destinationSequence = flattenRouteWithoutDepot(vehicles[k].route)
+        let destinationSequence = vehicles[k].newSequence || flattenRouteWithoutDepot(vehicles[k].route)
         // let destinationSequenceWithWeight = populateWeightToSequence(destinationSequence)
-        const destinationDistance = vehicles[k].totalDistance
+        const destinationDistance = vehicles[k].newTotalDistance || vehicles[k].totalDistance
+        const destinationWeightAvailable = vehicles[k].newWeightAvailable || vehicles[k].weightAvailable
 
-        // === skip over if length is 1 
+        // skip over if length is 1 
         if (sequence.length === 1) continue
 
-        // each destination in other vehicles
-        for(let l = 0; l <= destinationSequence.length; l++ ) {
+        // relocate if destination vehicle can afford
+        if (sequenceWithWeight[j].weight < destinationWeightAvailable) {
 
-          // stop when exceeded
-          if (swapTimes > maxSwapTimes) {
-            i = vehicles.length
-            break baseVehicleLoop;
-          }
+          // each destination in other vehicles
+          // conclusive of last position after last existing destination
+          for(let l = 0; l <= destinationSequence.length; l++ ) {
 
-          // relocate if destination vehicle can afford
-          if (sequenceWithWeight[j].weight < vehicles[k].weightAvailable) {
-            destinationSequence.splice(l, 0, relocationBaseID)
+            // stop when exceeded
+            if (swapTimes > maxSwapTimes) {
+              i = vehicles.length
+              break baseVehicleLoop;
+            }
+
+            // insert relocation ID
+            let relocatedDestinationSequence = [...destinationSequence]
+            relocatedDestinationSequence.splice(l, 0, relocationBaseID)
             // compare whether new weight is better or not
-            const newDestinationDistance = findRouteDistance([DEPOT_ID, ...destinationSequence, DEPOT_ID])
-            const oldTotalDistance = baseVehicle.totalDistance + destinationDistance
+            const newDestinationDistance = findRouteDistance([DEPOT_ID, ...relocatedDestinationSequence, DEPOT_ID])
+            const oldTotalDistance = baseVehicleDistance + destinationDistance
             const newTotalDistance = removedBasedDistance + newDestinationDistance
 
             if (oldTotalDistance > newTotalDistance) {
               // use new one
-              vehicles[k].newSequence = destinationSequence
-              vehicles[k].newTotalDistance = newTotalDistance
+              vehicles[i].newSequence = baseSequenceCopy
+              vehicles[i].newTotalDistance = removedBasedDistance
+              vehicles[i].newWeightAvailable = vehicles[i].weightAvailable + sequenceWithWeight[j].weight
+
+              vehicles[k].newSequence = relocatedDestinationSequence
+              vehicles[k].newTotalDistance = newDestinationDistance
+              vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight
               // === stop rest of vehicles loop -> goto next destination in base vehicle
               break restOfVehiclesLoop
             }
@@ -511,17 +543,21 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
 
 // TODO: Accept param for maxSwapTimes
 // Defaults to max
-// TODO: make recursive??
-function exchange(vehicles: ExchangeRoute[]) : ExchangeRoute[] {
+function exchange(vehicles: RelocateRoute[]) : RelocateRoute[] {
   const maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4)
   let swapTimes = 0
   
   baseVehicleLoop:
   // base vehicle to swap
   for (let i = 0; i < vehicles.length - 1; i++) {
-    let sequence = flattenRouteWithoutDepot(vehicles[i].route)
+    let sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route)
     let sequenceWithWeight = populateWeightToSequence(sequence)
     const baseVehicle = { ...vehicles[i], sequence }
+    const baseVehicleWeightAvailable = baseVehicle.newWeightAvailable || baseVehicle.weightAvailable
+    const baseVehicleTotalDistance = baseVehicle.newTotalDistance || baseVehicle.totalDistance
+
+    // skip if length is 1
+    if (sequence.length === 1) continue
     
     // each destination excluding DEPOT
     for (let j = 0; j < sequence.length; j++) {
@@ -529,17 +565,21 @@ function exchange(vehicles: ExchangeRoute[]) : ExchangeRoute[] {
       const baseSequenceCopy = [...sequence]
       const relocationBaseID = baseSequenceCopy.splice(j, 1)[0]
       const removedBaseIDWeight = sequenceWithWeight[j].weight
-      // const removedBasedDistance = findRouteDistance([DEPOT_ID, ...baseSequenceCopy, DEPOT_ID])
-      const removedBasedWeightAvailable = baseVehicle.weightAvailable + removedBaseIDWeight
+      const removedBasedWeightAvailable = baseVehicleWeightAvailable + removedBaseIDWeight
       
       // the rest of the vehicles
+      restOfVehiclesLoop:
       for(let k = i+1; k < vehicles.length; k++) {
-        let destinationSequence = flattenRouteWithoutDepot(vehicles[k].route)
+        let destinationSequence = vehicles[k].newSequence || flattenRouteWithoutDepot(vehicles[k].route)
         let destinationSequenceWithWeight = populateWeightToSequence(destinationSequence)
-        const destinationDistance = vehicles[k].totalDistance
+        const destinationDistance = vehicles[k].newTotalDistance || vehicles[k].totalDistance
+        const destinationWeightAvailable = vehicles[k].newWeightAvailable || vehicles[k].weightAvailable
+
+        // skip over if length is 1
+        if (sequence.length === 1) continue
 
         // each destination in other vehicles
-        for(let l = 0; l <= destinationSequence.length; l++ ) {
+        for(let l = 0; l < destinationSequence.length; l++ ) {
 
           // stop when exceeded
           if (swapTimes > maxSwapTimes) {
@@ -550,32 +590,34 @@ function exchange(vehicles: ExchangeRoute[]) : ExchangeRoute[] {
           const exchangeDestinationSequenceCopy = [...destinationSequence]
           const exchangeDestinationID = exchangeDestinationSequenceCopy.splice(l, 1)[0]
           const exchangeDestinationIDWeight = destinationSequenceWithWeight[l].weight
-          const exchangeDestinationWeightAvailable = vehicles[k].weightAvailable + exchangeDestinationIDWeight
+          const exchangeDestinationWeightAvailable = destinationWeightAvailable + exchangeDestinationIDWeight
 
           // exchange if can afford
           if (removedBasedWeightAvailable > exchangeDestinationIDWeight &&
-            exchangeDestinationWeightAvailable > removedBaseIDWeight) {
-            const newBaseSequence = [...baseSequenceCopy].splice(j, 0, exchangeDestinationID)
+          exchangeDestinationWeightAvailable > removedBaseIDWeight) {
+            let newBaseSequence = [...baseSequenceCopy]    
+            newBaseSequence.splice(j, 0, exchangeDestinationID)
             const newBaseTotalDistance = findRouteDistance([DEPOT_ID, ...newBaseSequence, DEPOT_ID])
-            const newBaseWeightAvailable = removedBasedWeightAvailable + exchangeDestinationIDWeight
+            const newBaseWeightAvailable = removedBasedWeightAvailable - exchangeDestinationIDWeight
 
-            const newDestinationSequence = [...exchangeDestinationSequenceCopy].splice(l, 0, relocationBaseID)
+            let newDestinationSequence = [...exchangeDestinationSequenceCopy]
+            newDestinationSequence.splice(l, 0, relocationBaseID)
             const newDestinationTotalDistance = findRouteDistance([DEPOT_ID, ...newDestinationSequence, DEPOT_ID])
-            const newDestinationWeightAvailable = exchangeDestinationWeightAvailable + removedBaseIDWeight
+            const newDestinationWeightAvailable = exchangeDestinationWeightAvailable - removedBaseIDWeight
 
-            const oldTotalDistance = baseVehicle.totalDistance + destinationDistance
+            const oldTotalDistance = baseVehicleTotalDistance + destinationDistance
             const newTotalDistance = newBaseTotalDistance + newDestinationTotalDistance
             // use new sequence if it has lower distance
             if (newTotalDistance < oldTotalDistance) {
               vehicles[i].newSequence = newBaseSequence
               vehicles[i].newTotalDistance = newBaseTotalDistance
-              vehicles[i].nweWeightAvailable = newBaseWeightAvailable
+              vehicles[i].newWeightAvailable = newBaseWeightAvailable
 
               vehicles[k].newSequence = newDestinationSequence
               vehicles[k].newTotalDistance = newDestinationTotalDistance
-              vehicles[k].nweWeightAvailable = newDestinationWeightAvailable
+              vehicles[k].newWeightAvailable = newDestinationWeightAvailable
 
-              // TODO: after successful swap need to replace with new Route and sequence?
+              break restOfVehiclesLoop
             }
           }
         }
