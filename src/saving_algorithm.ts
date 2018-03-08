@@ -501,12 +501,6 @@ function findDistance(point1: number, point2: number) {
     point2 =  temp
   }
   const index = (point1 - 1) * TOTAL_NODES + point2 - 1
-  // if (!savingsJSON[index].Total_Length) {
-  //   console.log('Savings JSON at index:', savingsJSON[index])
-  //   console.log(index)
-  //   console.log(point1)
-  //   console.log(point2)
-  // }
   if (!savingsJSON[index]) {
     console.log("Can't find index:", index)
   }
@@ -534,12 +528,11 @@ function populateWeightToSequence(sequence: number[]) {
   })
 }
 
-// TODO: Accept param for maxSwapTimes
-// TODO: Defaults to max
 // NOTE:Relocate success = go to next base vehicle's destination
-function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
-  const maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4)
+function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRoute[] {
+  const maxSwapTimes = options.maxSwapTimes || 999999999
   let swapTimes = 0
+  const annelingProb = options.annelingProb || 0.2
   
   baseVehicleLoop:
   // base vehicle to swap
@@ -580,7 +573,7 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
           for(let l = 0; l <= destinationSequence.length; l++ ) {
 
             // stop when exceeded
-            if (swapTimes > maxSwapTimes) {
+            if (swapTimes++ > maxSwapTimes) {
               i = vehicles.length
               break baseVehicleLoop;
             }
@@ -602,8 +595,23 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
               vehicles[k].newSequence = relocatedDestinationSequence
               vehicles[k].newTotalDistance = newDestinationDistance
               vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight
-              // === stop rest of vehicles loop -> goto next destination in base vehicle
+              // stop rest of vehicles loop -> goto next destination in base vehicle
               break restOfVehiclesLoop
+            } else if (options.mode === Mode.SimulatedAnneling) {
+              const random = Math.random()
+              // do the same as success (same code as above)
+              if (random < annelingProb) {
+                // use new one
+                vehicles[i].newSequence = baseSequenceCopy
+                vehicles[i].newTotalDistance = removedBasedDistance
+                vehicles[i].newWeightAvailable = vehicles[i].weightAvailable + sequenceWithWeight[j].weight
+
+                vehicles[k].newSequence = relocatedDestinationSequence
+                vehicles[k].newTotalDistance = newDestinationDistance
+                vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight
+                // stop rest of vehicles loop -> goto next destination in base vehicle
+                break restOfVehiclesLoop
+              }
             }
           }
         }
@@ -614,11 +622,11 @@ function relocate(vehicles: RelocateRoute[]) : RelocateRoute[] {
   return vehicles
 }
 
-// TODO: Accept param for maxSwapTimes
 // Defaults to max
-function exchange(vehicles: RelocateRoute[]) : RelocateRoute[] {
-  const maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4)
+function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRoute[] {
+  const maxSwapTimes = options.maxSwapTimes || 999999999
   let swapTimes = 0
+  const annelingProb = options.annelingProb || 0.2
   
   baseVehicleLoop:
   // base vehicle to swap
@@ -655,7 +663,7 @@ function exchange(vehicles: RelocateRoute[]) : RelocateRoute[] {
         for(let l = 0; l < destinationSequence.length; l++ ) {
 
           // stop when exceeded
-          if (swapTimes > maxSwapTimes) {
+          if (swapTimes++ > maxSwapTimes) {
             i = vehicles.length
             break baseVehicleLoop;
           }
@@ -691,6 +699,20 @@ function exchange(vehicles: RelocateRoute[]) : RelocateRoute[] {
               vehicles[k].newWeightAvailable = newDestinationWeightAvailable
 
               break restOfVehiclesLoop
+            } else if (options.mode === Mode.SimulatedAnneling) {
+              const random = Math.random()
+              // do the same as success (same code as above)
+              if (random < annelingProb) {
+                vehicles[i].newSequence = newBaseSequence
+                vehicles[i].newTotalDistance = newBaseTotalDistance
+                vehicles[i].newWeightAvailable = newBaseWeightAvailable
+
+                vehicles[k].newSequence = newDestinationSequence
+                vehicles[k].newTotalDistance = newDestinationTotalDistance
+                vehicles[k].newWeightAvailable = newDestinationWeightAvailable
+
+                break restOfVehiclesLoop
+              }
             }
           }
         }
