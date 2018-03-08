@@ -57,6 +57,25 @@ interface WithinSwapped {
   finalDistance: number
 }
 
+interface SwapOptions {
+  mode: Mode,
+  annelingProb?: number,
+  tabuTenure?: number,
+  tabuList?: Array<TabuItem>,
+}
+
+interface TabuItem {
+  pair: [number, number],
+  turnsLeft: number,
+}
+
+enum Mode {
+  Normal,
+  SimulatedAnneling,
+  TabuSearch,
+}
+
+
 const savingsWB = XLSX.readFile(SAVINGS_OUTPUT_PATH)
 const savingsJSON: COST_MATRIX_DATA[] = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true })
 
@@ -82,7 +101,13 @@ allRoutes.map(route => {
 console.log('All Routes Total Distance:', totalDistanceAll)
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes))
 
-const swappedWithin = withinTourInsertion(allRoutes, savingsJSON)
+const swapOptions: SwapOptions = {
+  mode: Mode.Normal,
+  // mode: Mode.TabuSearch,
+  // tabuTenure: 1000,
+}
+
+const swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON)
 let totalDistanceSwapped = 0
 swappedWithin.map(route => {
   totalDistanceSwapped += route.finalDistance
@@ -109,21 +134,21 @@ console.log('Exchanged Total Distance:', totalDistanceExchanged)
 console.log('Exchanged:', exchanged)
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/exchanged.json'), JSON.stringify(exchanged))
 
-for (let i = 0; i < allRoutes.length; i++) {
-  const allRouteTotalDistance = allRoutes[i].totalDistance
-  const exchangedTotalDistance = exchanged[i].newTotalDistance || exchanged[i].totalDistance
-  if (allRouteTotalDistance === exchangedTotalDistance) console.log('Index:', i, 'EQUAL')
-  else if (allRouteTotalDistance < exchangedTotalDistance) {
-    console.log('Index:', i, 'ALL ROUTE')
-    console.log('All Route:', allRouteTotalDistance)
-    console.log('Exchanged:', exchangedTotalDistance)
-  }
-  else if (allRouteTotalDistance > exchangedTotalDistance) {
-    console.log('Index:', i, 'EXCHANGED')
-    console.log('All Route:', allRouteTotalDistance)
-    console.log('Exchanged:', exchangedTotalDistance)
-  }
-}
+// for (let i = 0; i < allRoutes.length; i++) {
+//   const allRouteTotalDistance = allRoutes[i].totalDistance
+//   const exchangedTotalDistance = exchanged[i].newTotalDistance || exchanged[i].totalDistance
+//   if (allRouteTotalDistance === exchangedTotalDistance) console.log('Index:', i, 'EQUAL')
+//   else if (allRouteTotalDistance < exchangedTotalDistance) {
+//     console.log('Index:', i, 'ALL ROUTE')
+//     console.log('All Route:', allRouteTotalDistance)
+//     console.log('Exchanged:', exchangedTotalDistance)
+//   }
+//   else if (allRouteTotalDistance > exchangedTotalDistance) {
+//     console.log('Index:', i, 'EXCHANGED')
+//     console.log('All Route:', allRouteTotalDistance)
+//     console.log('Exchanged:', exchangedTotalDistance)
+//   }
+// }
 
 function formatSchedule(schedule: Schedule_Data[], { sum }: Format_Options = { sum: false }) {
   const scheduleObject: Schedule_Object = {}
@@ -316,15 +341,13 @@ function calculateAllRoutes(table: COST_MATRIX_DATA[], schedule: Schedule_Object
 }
 
 // TODO: Return as an additional field to existing ROute[] or as a new type
-function withinTourInsertion(vehicles: Route[], fullSavingsTable: COST_MATRIX_DATA[]) {
+function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavingsTable: COST_MATRIX_DATA[]) {
   return vehicles.map(vehicle => {
     const totalLength = vehicle.route.length
     const totalDistance = vehicle.totalDistance
   
     // make a single array excluding depot_id
     const sequence = flattenRouteWithoutDepot(vehicle.route)
-    // console.log('Sequence:', sequence)
-    // console.log('Total Distance:', totalDistance)
 
     // no swap for single destination routes
     if (totalLength === 2) {
@@ -344,9 +367,11 @@ function withinTourInsertion(vehicles: Route[], fullSavingsTable: COST_MATRIX_DA
     let currentDistance = totalDistance
     let distance = totalDistance
     let routes: number[] = []
+    let tabuList: TabuItem[]|undefined = []
     const maxSwapTimes = Math.floor(sequence.length * (sequence.length - 1) / 4)
     while(currentCount < maxSwapTimes) {
-      ({ routes, currentCount, distance } = swapRouteWithin(sequence, currentCount, distance))
+      ({ routes, currentCount, distance, tabuList } = swapRouteWithin(sequence, currentCount, distance, options))
+      options.tabuList = tabuList
       // console.log('Current Count:', currentCount)
       // console.log('Current Distance:', currentDistance)
       // console.log('Routes:', routes)
@@ -367,14 +392,44 @@ function withinTourInsertion(vehicles: Route[], fullSavingsTable: COST_MATRIX_DA
   })
 }
 
-function swapRouteWithin(routes: number[], currentCount: number, currentDistance: number) {
+function swapRouteWithin(routes: number[], currentCount: number, currentDistance: number, options: SwapOptions) {
   const maxSwapTimes = Math.floor(routes.length * (routes.length - 1) / 4)
+  const annelingProb = options.annelingProb || 0.2
+  const tabuTenure = options.tabuTenure || 10
+  let tabuList = options.tabuList || []
   for (let i = 0; i < routes.length - 1; i++) {
     for(let j = 1; j < routes.length; j++) {
       // exceed maxSwap, return
       if (currentCount > maxSwapTimes) {
         i = routes.length
         break
+      }
+
+      // TS mode
+      if (options.mode === Mode.TabuSearch) {
+        const num1 = routes[i]
+        const num2 = routes[j]
+        let skip = false
+        tabuList = tabuList.map(item => {
+          // if in list, skip it
+          if (item.pair === [num1, num2] || item.pair === [num2, num1]) {
+            skip = true
+          }
+          // decrement
+          item.turnsLeft -= 1
+          // remove if expired
+          if (item.turnsLeft < 1) {
+            return null
+          } else {
+            return item
+          }
+        }).filter(item => item) as TabuItem[]
+
+        // if in tabu list, skip this round
+        if (skip) {
+          currentCount++
+          continue
+        }
       }
 
       // swap and add back depot into routes
@@ -384,12 +439,36 @@ function swapRouteWithin(routes: number[], currentCount: number, currentDistance
       swappedRoute.unshift(DEPOT_ID)
       swappedRoute.push(DEPOT_ID)
       const distance = findRouteDistance(swappedRoute)
-      // console.log('Distance:', distance)
+
       if (distance < currentDistance) {
+        // if in tabu mode, insert pair into List
+        if (options.mode === Mode.TabuSearch) {
+          const tabuItem: TabuItem = {
+            pair: [routes[i], routes[j]],
+            turnsLeft: tabuTenure
+          }
+          tabuList.push(tabuItem)
+          return {
+            routes: swappedRoute,
+            currentCount: ++currentCount,
+            distance,
+            tabuList,
+          }
+        }        
         return {
           routes: swappedRoute,
           currentCount: ++currentCount,
           distance: distance
+        }
+      // if SA mode then chance to use the worsened route
+      } else if (options.mode === Mode.SimulatedAnneling) {
+        const random = Math.random() // 0 - 0.999...
+        if (random < annelingProb) {
+          return {
+            routes: swappedRoute,
+            currentCount: ++currentCount,
+            distance: distance
+          }
         }
       }
       
