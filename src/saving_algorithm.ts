@@ -70,6 +70,11 @@ interface TabuItem {
   turnsLeft: number,
 }
 
+interface Tabu {
+  number: number,
+  turnsLeft: number,
+}
+
 enum Mode {
   Normal,
   SimulatedAnneling,
@@ -117,7 +122,7 @@ console.log('Within Swapped Total Distance:', totalDistanceSwapped)
 console.log('Swapped Within:', swappedWithin)
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/swappedWithin.json'), JSON.stringify(swappedWithin))
 
-const relocated = relocate(allRoutes)
+const relocated = relocate(allRoutes, swapOptions)
 let totalDistanceRelocated = 0
 relocated.map(route => {
   totalDistanceRelocated += route.newTotalDistance || route.totalDistance
@@ -126,7 +131,7 @@ console.log('Relocated Swap Total Distance:', totalDistanceRelocated)
 console.log('Relocated:', relocated)
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated))
 
-const exchanged = exchange(allRoutes)
+const exchanged = exchange(allRoutes, swapOptions)
 let totalDistanceExchanged = 0
 exchanged.map(route => {
   totalDistanceExchanged += route.newTotalDistance || route.totalDistance
@@ -533,6 +538,8 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
   const maxSwapTimes = options.maxSwapTimes || 999999999
   let swapTimes = 0
   const annelingProb = options.annelingProb || 0.2
+  const tabuTenure = options.tabuTenure || 10
+  let tabuList: Tabu[] = []
   
   baseVehicleLoop:
   // base vehicle to swap
@@ -553,6 +560,23 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
       const baseSequenceCopy = [...sequence]
       const relocationBaseID = baseSequenceCopy.splice(j, 1)[0]
       const removedBasedDistance = findRouteDistance([DEPOT_ID, ...baseSequenceCopy, DEPOT_ID])
+      
+      // Tabu mode check
+      if (options.mode === Mode.TabuSearch) {
+        let skip = false
+        tabuList = tabuList.map(item => {
+          // number to relocate in list, skip this number
+          if (item.number === relocationBaseID) skip = true
+          if (--item.turnsLeft < 1) return null
+          return item
+        }).filter(item => item) as Tabu[]
+
+        // skip to next number
+        if (skip) {
+          swapTimes++
+          continue
+        }
+      }
       
       // the rest of the vehicles
       restOfVehiclesLoop:
@@ -587,6 +611,11 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
             const newTotalDistance = removedBasedDistance + newDestinationDistance
 
             if (oldTotalDistance > newTotalDistance) {
+              // if in tabu mode, insert values into list as well
+              if (options.mode === Mode.TabuSearch) {
+                tabuList.push({ number: relocationBaseID, turnsLeft: tabuTenure })
+              }
+
               // use new one
               vehicles[i].newSequence = baseSequenceCopy
               vehicles[i].newTotalDistance = removedBasedDistance
@@ -627,6 +656,8 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
   const maxSwapTimes = options.maxSwapTimes || 999999999
   let swapTimes = 0
   const annelingProb = options.annelingProb || 0.2
+  const tabuTenure = options.tabuTenure || 10
+  let tabuList: Tabu[] = []
   
   baseVehicleLoop:
   // base vehicle to swap
@@ -647,7 +678,7 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
       const relocationBaseID = baseSequenceCopy.splice(j, 1)[0]
       const removedBaseIDWeight = sequenceWithWeight[j].weight
       const removedBasedWeightAvailable = baseVehicleWeightAvailable + removedBaseIDWeight
-      
+
       // the rest of the vehicles
       restOfVehiclesLoop:
       for(let k = i+1; k < vehicles.length; k++) {
@@ -673,6 +704,30 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
           const exchangeDestinationIDWeight = destinationSequenceWithWeight[l].weight
           const exchangeDestinationWeightAvailable = destinationWeightAvailable + exchangeDestinationIDWeight
 
+          // Tabu mode check
+          if (options.mode === Mode.TabuSearch) {
+            let skipDestination = false
+            let skipBase = false
+            tabuList = tabuList.map(item => {
+              // number to relocate in list, skip this number
+              if (item.number === relocationBaseID) skipBase = true
+              if (item.number === exchangeDestinationID) skipDestination = true
+              if (--item.turnsLeft < 1) return null
+              return item
+            }).filter(item => item) as Tabu[]
+
+            // skip to next base number
+            if (skipBase) {
+              swapTimes++
+              break restOfVehiclesLoop
+            }
+            // skip to next destination number
+            if (skipDestination) {
+              swapTimes++
+              continue
+            }
+          }
+
           // exchange if can afford
           if (removedBasedWeightAvailable > exchangeDestinationIDWeight &&
           exchangeDestinationWeightAvailable > removedBaseIDWeight) {
@@ -690,6 +745,12 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
             const newTotalDistance = newBaseTotalDistance + newDestinationTotalDistance
             // use new sequence if it has lower distance
             if (newTotalDistance < oldTotalDistance) {
+              // if in tabu mode, insert both values into list
+              if (options.mode === Mode.TabuSearch) {
+                tabuList.push({ number: relocationBaseID, turnsLeft: tabuTenure })
+                tabuList.push({ number: exchangeDestinationID, turnsLeft: tabuTenure })
+              }
+
               vehicles[i].newSequence = newBaseSequence
               vehicles[i].newTotalDistance = newBaseTotalDistance
               vehicles[i].newWeightAvailable = newBaseWeightAvailable

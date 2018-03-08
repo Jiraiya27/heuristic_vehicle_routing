@@ -10,3 +10,4 @@
 ## Questions
 
 - TabuTenure reduces after each unsuccessful attempt right?
+- Change tabuList for within to be same as relocate and exchange
