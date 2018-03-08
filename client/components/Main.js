@@ -1,5 +1,7 @@
 import React, { Component } from 'react'
 import * as allRoutes from '../test_files/allRoutes'
+import * as swappedWithin  from '../test_files/swappedWithin'
+import * as _ from 'lodash'
 
 export default class Main extends Component {
 
@@ -24,6 +26,22 @@ export default class Main extends Component {
     )
   }
 
+  displaySwappedWithin = ({ finalRoute, originalRoute, finalDistance }, routeIndex) => {
+    const divKey = 'displayDivKey2' + routeIndex
+    if (!_.isEqual(originalRoute, finalRoute)) console.log('Index:', originalRoute, finalRoute)
+    return (
+      <div key={divKey}>
+        {finalRoute.map((pair, index) => {
+          const spanKey = 'displaySpanKey' + routeIndex + index
+          if (index === finalRoute.length - 1) return (<span key={spanKey}>{pair}</span>)
+          return (<span key={spanKey}>{pair}></span>)
+        })}
+        {'\t Total Distance:' + finalDistance}
+        {/* {'\t Weight:' + (2000 - Number(weightAvailable))} */}
+      </div>
+    )
+  }
+
   render() {
 
     console.log('All Routes:', allRoutes)
@@ -34,6 +52,9 @@ export default class Main extends Component {
         <br/>
         <br/>
         {allRoutes.map(this.displayRoute)}
+        <br/>
+        <br/>
+        {swappedWithin.map(this.displaySwappedWithin)}
       </div>
     )
   }

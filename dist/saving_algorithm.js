@@ -13,6 +13,12 @@ var lodash_1 = require("lodash");
 var config_1 = require("./config");
 var fs = require("fs");
 var path = require("path");
+var Mode;
+(function (Mode) {
+    Mode[Mode["Normal"] = 0] = "Normal";
+    Mode[Mode["SimulatedAnneling"] = 1] = "SimulatedAnneling";
+    Mode[Mode["TabuSearch"] = 2] = "TabuSearch";
+})(Mode || (Mode = {}));
 var savingsWB = XLSX.readFile(config_1.SAVINGS_OUTPUT_PATH);
 var savingsJSON = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true });
 var scheduleWB = XLSX.readFile(config_1.SCHEDULE_ORDER_PATH);
@@ -36,15 +42,52 @@ allRoutes.map(function (route) {
 });
 console.log('All Routes Total Distance:', totalDistanceAll);
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes));
-var swappedWithin = withinTourInsertion(allRoutes, savingsJSON);
+var swapOptions = {
+    mode: Mode.Normal,
+};
+var swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON);
 var totalDistanceSwapped = 0;
 swappedWithin.map(function (route) {
     totalDistanceSwapped += route.finalDistance;
 });
 console.log('Within Swapped Total Distance:', totalDistanceSwapped);
-// console.log('Swapped Within:', swappedWithin)
+console.log('Swapped Within:', swappedWithin);
 fs.writeFileSync(path.resolve(__dirname, '../client/test_files/swappedWithin.json'), JSON.stringify(swappedWithin));
-var noOfVehicles = allRoutes.length;
+var relocated = relocate(allRoutes);
+var totalDistanceRelocated = 0;
+relocated.map(function (route) {
+    totalDistanceRelocated += route.newTotalDistance || route.totalDistance;
+});
+console.log('Relocated Swap Total Distance:', totalDistanceRelocated);
+console.log('Relocated:', relocated);
+fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated));
+var exchanged = exchange(allRoutes);
+var totalDistanceExchanged = 0;
+exchanged.map(function (route) {
+    totalDistanceExchanged += route.newTotalDistance || route.totalDistance;
+});
+console.log('Exchanged Total Distance:', totalDistanceExchanged);
+console.log('Exchanged:', exchanged);
+fs.writeFileSync(path.resolve(__dirname, '../client/test_files/exchanged.json'), JSON.stringify(exchanged));
+var test1 = findRouteDistance([config_1.DEPOT_ID, 199, 49, 73, config_1.DEPOT_ID]);
+var test2 = findRouteDistance([config_1.DEPOT_ID, 73, 49, 199, config_1.DEPOT_ID]);
+console.log('Test1:', test1);
+console.log('Test2:', test2);
+// for (let i = 0; i < allRoutes.length; i++) {
+//   const allRouteTotalDistance = allRoutes[i].totalDistance
+//   const exchangedTotalDistance = exchanged[i].newTotalDistance || exchanged[i].totalDistance
+//   if (allRouteTotalDistance === exchangedTotalDistance) console.log('Index:', i, 'EQUAL')
+//   else if (allRouteTotalDistance < exchangedTotalDistance) {
+//     console.log('Index:', i, 'ALL ROUTE')
+//     console.log('All Route:', allRouteTotalDistance)
+//     console.log('Exchanged:', exchangedTotalDistance)
+//   }
+//   else if (allRouteTotalDistance > exchangedTotalDistance) {
+//     console.log('Index:', i, 'EXCHANGED')
+//     console.log('All Route:', allRouteTotalDistance)
+//     console.log('Exchanged:', exchangedTotalDistance)
+//   }
+// }
 function formatSchedule(schedule, _a) {
     var sum = (_a === void 0 ? { sum: false } : _a).sum;
     var scheduleObject = {};
@@ -224,37 +267,36 @@ function calculateAllRoutes(table, schedule, fullSavingsTable) {
     });
     return allRoutes;
 }
-function withinTourInsertion(vehicles, fullSavingsTable) {
+// TODO: Return as an additional field to existing ROute[] or as a new type
+function withinTourInsertion(vehicles, options, fullSavingsTable) {
     return vehicles.map(function (vehicle) {
         var totalLength = vehicle.route.length;
         var totalDistance = vehicle.totalDistance;
-        // no swap for single destination routes
-        if (totalLength === 2)
-            return vehicle;
         // make a single array excluding depot_id
         var sequence = flattenRouteWithoutDepot(vehicle.route);
-        // console.log('Sequence:', sequence)
-        // console.log('Total Distance:', totalDistance)
+        // no swap for single destination routes
+        if (totalLength === 2) {
+            // return vehicle
+            return {
+                originalRoute: sequence,
+                finalRoute: sequence,
+                originalDistance: totalDistance,
+                finalDistance: totalDistance
+            };
+        }
         // swap for half of total possibilities
         // redo if found better solution
         // TODO: rename current distance to original distance and distance -> currentDistance
         var currentCount = 0;
         var currentDistance = totalDistance;
         var distance = totalDistance;
-        var routes = [];
+        var routes = sequence;
+        var tabuList = [];
         var maxSwapTimes = Math.floor(sequence.length * (sequence.length - 1) / 4);
         while (currentCount < maxSwapTimes) {
-            (_a = swapRouteWithin(sequence, currentCount, distance), routes = _a.routes, currentCount = _a.currentCount, distance = _a.distance);
-            // console.log('Current Count:', currentCount)
-            // console.log('Current Distance:', currentDistance)
-            // console.log('Routes:', routes)
-            // console.log('Distance:', distance)
-            // console.log('=============================================')
+            (_a = swapRouteWithin(routes, currentCount, distance, options), routes = _a.routes, currentCount = _a.currentCount, distance = _a.distance, tabuList = _a.tabuList);
+            options.tabuList = tabuList;
         }
-        // console.log('Current Count:', currentCount)
-        // console.log('Current Distance:', currentDistance)
-        // console.log('Routes:', routes)
-        // console.log('Distance:', distance)
         return {
             originalRoute: sequence,
             finalRoute: routes,
@@ -264,31 +306,89 @@ function withinTourInsertion(vehicles, fullSavingsTable) {
         var _a;
     });
 }
-function swapRouteWithin(routes, currentCount, currentDistance) {
+function swapRouteWithin(routes, currentCount, currentDistance, options) {
     var maxSwapTimes = Math.floor(routes.length * (routes.length - 1) / 4);
+    var annelingProb = options.annelingProb || 0.2;
+    var tabuTenure = options.tabuTenure || 10;
+    var tabuList = options.tabuList || [];
     for (var i = 0; i < routes.length - 1; i++) {
-        for (var j = 1; j < routes.length; j++) {
+        var _loop_1 = function (j) {
             // exceed maxSwap, return
             if (currentCount > maxSwapTimes) {
                 i = routes.length;
-                break;
+                return "break";
+            }
+            // TS mode
+            if (options.mode === Mode.TabuSearch) {
+                var num1_1 = routes[i];
+                var num2_1 = routes[j];
+                var skip_1 = false;
+                tabuList = tabuList.map(function (item) {
+                    // if in list, skip it
+                    if (item.pair === [num1_1, num2_1] || item.pair === [num2_1, num1_1]) {
+                        skip_1 = true;
+                    }
+                    // decrement
+                    item.turnsLeft -= 1;
+                    // remove if expired
+                    if (item.turnsLeft < 1) {
+                        return null;
+                    }
+                    else {
+                        return item;
+                    }
+                }).filter(function (item) { return item; });
+                // if in tabu list, skip this round
+                if (skip_1) {
+                    currentCount++;
+                    return "continue";
+                }
             }
             // swap and add back depot into routes
             // compare new route's distance
             // break if lower than currentDistance
             var swappedRoute = swap(routes, routes[i], routes[j]);
-            swappedRoute.unshift(config_1.DEPOT_ID);
-            swappedRoute.push(config_1.DEPOT_ID);
-            var distance = findRouteDistance(swappedRoute);
-            // console.log('Distance:', distance)
+            var distance = findRouteDistance([config_1.DEPOT_ID].concat(swappedRoute, [config_1.DEPOT_ID]));
             if (distance < currentDistance) {
-                return {
-                    routes: swappedRoute,
-                    currentCount: ++currentCount,
-                    distance: distance
-                };
+                // if in tabu mode, insert pair into List
+                if (options.mode === Mode.TabuSearch) {
+                    var tabuItem = {
+                        pair: [routes[i], routes[j]],
+                        turnsLeft: tabuTenure
+                    };
+                    tabuList.push(tabuItem);
+                    return { value: {
+                            routes: swappedRoute,
+                            currentCount: ++currentCount,
+                            distance: distance,
+                            tabuList: tabuList,
+                        } };
+                }
+                return { value: {
+                        routes: swappedRoute,
+                        currentCount: ++currentCount,
+                        distance: distance
+                    } };
+                // if SA mode then chance to use the worsened route
+            }
+            else if (options.mode === Mode.SimulatedAnneling) {
+                var random = Math.random(); // 0 - 0.999...
+                if (random < annelingProb) {
+                    return { value: {
+                            routes: swappedRoute,
+                            currentCount: ++currentCount,
+                            distance: distance
+                        } };
+                }
             }
             currentCount++;
+        };
+        for (var j = i + 1; j < routes.length; j++) {
+            var state_1 = _loop_1(j);
+            if (typeof state_1 === "object")
+                return state_1.value;
+            if (state_1 === "break")
+                break;
         }
     }
     return {
@@ -345,45 +445,154 @@ function flattenRouteWithoutDepot(route) {
         return num2;
     }).filter(function (num) { return num; });
 }
-// function populateWeightToDestination(sequence: number[]) {
-//   return sequence.map(id => {
-//     return {
-//       id,
-//       weight:
-//     }
-//   })
-// }
+function populateWeightToSequence(sequence) {
+    return sequence.map(function (id) {
+        var weight = schedule[id].totalKG % config_1.MAX_VEHICLE_WEIGHT;
+        return {
+            id: id,
+            weight: weight,
+        };
+    });
+}
 // TODO: Accept param for maxSwapTimes
-// Defaults to max
+// TODO: Defaults to max
+// NOTE:Relocate success = go to next base vehicle's destination
 function relocate(vehicles) {
     var maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4);
     var swapTimes = 0;
     baseVehicleLoop: 
     // base vehicle to swap
     for (var i = 0; i < vehicles.length - 1; i++) {
-        var sequence = flattenRouteWithoutDepot(vehicles[i].route);
+        var sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route);
+        var sequenceWithWeight = populateWeightToSequence(sequence);
         var baseVehicle = __assign({}, vehicles[i], { sequence: sequence });
+        // skip over if length is 1 
+        if (sequence.length === 1)
+            continue;
+        // each destination excluding DEPOT
+        for (var j = 0; j < sequence.length; j++) {
+            // base vehicle distance can be changed after each destination ID
+            // therefore place in inner loop
+            var baseVehicleDistance = baseVehicle.newTotalDistance || baseVehicle.totalDistance;
+            // remove ID to put in other vehicle
+            var baseSequenceCopy = sequence.slice();
+            var relocationBaseID = baseSequenceCopy.splice(j, 1)[0];
+            var removedBasedDistance = findRouteDistance([config_1.DEPOT_ID].concat(baseSequenceCopy, [config_1.DEPOT_ID]));
+            // the rest of the vehicles
+            restOfVehiclesLoop: for (var k = i + 1; k < vehicles.length; k++) {
+                var destinationSequence = vehicles[k].newSequence || flattenRouteWithoutDepot(vehicles[k].route);
+                // let destinationSequenceWithWeight = populateWeightToSequence(destinationSequence)
+                var destinationDistance = vehicles[k].newTotalDistance || vehicles[k].totalDistance;
+                var destinationWeightAvailable = vehicles[k].newWeightAvailable || vehicles[k].weightAvailable;
+                // skip over if length is 1 
+                if (sequence.length === 1)
+                    continue;
+                // relocate if destination vehicle can afford
+                if (sequenceWithWeight[j].weight < destinationWeightAvailable) {
+                    // each destination in other vehicles
+                    // conclusive of last position after last existing destination
+                    for (var l = 0; l <= destinationSequence.length; l++) {
+                        // stop when exceeded
+                        if (swapTimes > maxSwapTimes) {
+                            i = vehicles.length;
+                            break baseVehicleLoop;
+                        }
+                        // insert relocation ID
+                        var relocatedDestinationSequence = destinationSequence.slice();
+                        relocatedDestinationSequence.splice(l, 0, relocationBaseID);
+                        // compare whether new weight is better or not
+                        var newDestinationDistance = findRouteDistance([config_1.DEPOT_ID].concat(relocatedDestinationSequence, [config_1.DEPOT_ID]));
+                        var oldTotalDistance = baseVehicleDistance + destinationDistance;
+                        var newTotalDistance = removedBasedDistance + newDestinationDistance;
+                        if (oldTotalDistance > newTotalDistance) {
+                            // use new one
+                            vehicles[i].newSequence = baseSequenceCopy;
+                            vehicles[i].newTotalDistance = removedBasedDistance;
+                            vehicles[i].newWeightAvailable = vehicles[i].weightAvailable + sequenceWithWeight[j].weight;
+                            vehicles[k].newSequence = relocatedDestinationSequence;
+                            vehicles[k].newTotalDistance = newDestinationDistance;
+                            vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight;
+                            // === stop rest of vehicles loop -> goto next destination in base vehicle
+                            break restOfVehiclesLoop;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return vehicles;
+}
+// TODO: Accept param for maxSwapTimes
+// Defaults to max
+function exchange(vehicles) {
+    var maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4);
+    var swapTimes = 0;
+    baseVehicleLoop: 
+    // base vehicle to swap
+    for (var i = 0; i < vehicles.length - 1; i++) {
+        var sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route);
+        var sequenceWithWeight = populateWeightToSequence(sequence);
+        var baseVehicle = __assign({}, vehicles[i], { sequence: sequence });
+        var baseVehicleWeightAvailable = baseVehicle.newWeightAvailable || baseVehicle.weightAvailable;
+        var baseVehicleTotalDistance = baseVehicle.newTotalDistance || baseVehicle.totalDistance;
+        // skip if length is 1
+        if (sequence.length === 1)
+            continue;
         // each destination excluding DEPOT
         for (var j = 0; j < sequence.length; j++) {
             // remove ID to put in other vehicle
-            var relocationBaseID = sequence.splice(j, 1)[0];
+            var baseSequenceCopy = sequence.slice();
+            var relocationBaseID = baseSequenceCopy.splice(j, 1)[0];
+            var removedBaseIDWeight = sequenceWithWeight[j].weight;
+            var removedBasedWeightAvailable = baseVehicleWeightAvailable + removedBaseIDWeight;
             // the rest of the vehicles
-            for (var k = i + 1; k < vehicles.length; k++) {
-                var destinationSequence = flattenRouteWithoutDepot(vehicles[k].route);
+            restOfVehiclesLoop: for (var k = i + 1; k < vehicles.length; k++) {
+                var destinationSequence = vehicles[k].newSequence || flattenRouteWithoutDepot(vehicles[k].route);
+                var destinationSequenceWithWeight = populateWeightToSequence(destinationSequence);
+                var destinationDistance = vehicles[k].newTotalDistance || vehicles[k].totalDistance;
+                var destinationWeightAvailable = vehicles[k].newWeightAvailable || vehicles[k].weightAvailable;
+                // skip over if length is 1
+                if (sequence.length === 1)
+                    continue;
                 // each destination in other vehicles
-                for (var l = 0; l <= destinationSequence.length; l++) {
+                for (var l = 0; l < destinationSequence.length; l++) {
                     // stop when exceeded
                     if (swapTimes > maxSwapTimes) {
                         i = vehicles.length;
                         break baseVehicleLoop;
                     }
-                    // relocate destination from base vehicle to another vehicle
-                    // const relocateID = sequence.splice(j, 1)[0]
-                    // destinationSequence.unshift(relocateID)
-                    // compare if total distance of both routes are less than before swap
+                    var exchangeDestinationSequenceCopy = destinationSequence.slice();
+                    var exchangeDestinationID = exchangeDestinationSequenceCopy.splice(l, 1)[0];
+                    var exchangeDestinationIDWeight = destinationSequenceWithWeight[l].weight;
+                    var exchangeDestinationWeightAvailable = destinationWeightAvailable + exchangeDestinationIDWeight;
+                    // exchange if can afford
+                    if (removedBasedWeightAvailable > exchangeDestinationIDWeight &&
+                        exchangeDestinationWeightAvailable > removedBaseIDWeight) {
+                        var newBaseSequence = baseSequenceCopy.slice();
+                        newBaseSequence.splice(j, 0, exchangeDestinationID);
+                        var newBaseTotalDistance = findRouteDistance([config_1.DEPOT_ID].concat(newBaseSequence, [config_1.DEPOT_ID]));
+                        var newBaseWeightAvailable = removedBasedWeightAvailable - exchangeDestinationIDWeight;
+                        var newDestinationSequence = exchangeDestinationSequenceCopy.slice();
+                        newDestinationSequence.splice(l, 0, relocationBaseID);
+                        var newDestinationTotalDistance = findRouteDistance([config_1.DEPOT_ID].concat(newDestinationSequence, [config_1.DEPOT_ID]));
+                        var newDestinationWeightAvailable = exchangeDestinationWeightAvailable - removedBaseIDWeight;
+                        var oldTotalDistance = baseVehicleTotalDistance + destinationDistance;
+                        var newTotalDistance = newBaseTotalDistance + newDestinationTotalDistance;
+                        // use new sequence if it has lower distance
+                        if (newTotalDistance < oldTotalDistance) {
+                            vehicles[i].newSequence = newBaseSequence;
+                            vehicles[i].newTotalDistance = newBaseTotalDistance;
+                            vehicles[i].newWeightAvailable = newBaseWeightAvailable;
+                            vehicles[k].newSequence = newDestinationSequence;
+                            vehicles[k].newTotalDistance = newDestinationTotalDistance;
+                            vehicles[k].newWeightAvailable = newDestinationWeightAvailable;
+                            break restOfVehiclesLoop;
+                        }
+                    }
                 }
             }
         }
     }
+    return vehicles;
 }
 //# sourceMappingURL=saving_algorithm.js.map

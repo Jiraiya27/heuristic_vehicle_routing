@@ -59,6 +59,7 @@ interface WithinSwapped {
 
 interface SwapOptions {
   mode: Mode,
+  maxSwapTimes?: number,
   annelingProb?: number,
   tabuTenure?: number,
   tabuList?: Array<TabuItem>,
@@ -366,22 +367,13 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
     let currentCount = 0
     let currentDistance = totalDistance
     let distance = totalDistance
-    let routes: number[] = []
+    let routes: number[] = sequence
     let tabuList: TabuItem[]|undefined = []
-    const maxSwapTimes = Math.floor(sequence.length * (sequence.length - 1) / 4)
+    const maxSwapTimes = options.maxSwapTimes || Math.floor(sequence.length * (sequence.length - 1) / 2)
     while(currentCount < maxSwapTimes) {
-      ({ routes, currentCount, distance, tabuList } = swapRouteWithin(sequence, currentCount, distance, options))
+      ({ routes, currentCount, distance, tabuList } = swapRouteWithin(routes, currentCount, distance, options))
       options.tabuList = tabuList
-      // console.log('Current Count:', currentCount)
-      // console.log('Current Distance:', currentDistance)
-      // console.log('Routes:', routes)
-      // console.log('Distance:', distance)
-      // console.log('=============================================')
     }
-    // console.log('Current Count:', currentCount)
-    // console.log('Current Distance:', currentDistance)
-    // console.log('Routes:', routes)
-    // console.log('Distance:', distance)
 
     return {
       originalRoute: sequence,
@@ -393,12 +385,12 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
 }
 
 function swapRouteWithin(routes: number[], currentCount: number, currentDistance: number, options: SwapOptions) {
-  const maxSwapTimes = Math.floor(routes.length * (routes.length - 1) / 4)
+  const maxSwapTimes = options.maxSwapTimes || Math.floor(routes.length * (routes.length - 1) / 2)
   const annelingProb = options.annelingProb || 0.2
   const tabuTenure = options.tabuTenure || 10
   let tabuList = options.tabuList || []
   for (let i = 0; i < routes.length - 1; i++) {
-    for(let j = 1; j < routes.length; j++) {
+    for(let j =  i + 1; j < routes.length; j++) {
       // exceed maxSwap, return
       if (currentCount > maxSwapTimes) {
         i = routes.length
@@ -411,8 +403,11 @@ function swapRouteWithin(routes: number[], currentCount: number, currentDistance
         const num2 = routes[j]
         let skip = false
         tabuList = tabuList.map(item => {
-          // if in list, skip it
-          if (item.pair === [num1, num2] || item.pair === [num2, num1]) {
+          // // if in list, skip it
+          // if (item.pair === [num1, num2] || item.pair === [num2, num1]) {
+          // if in tabuList, skip
+          if (item.pair[0] === num1 || item.pair[0] === num2
+          || item.pair[1] === num1 || item.pair[1] === num2) {
             skip = true
           }
           // decrement
@@ -436,9 +431,7 @@ function swapRouteWithin(routes: number[], currentCount: number, currentDistance
       // compare new route's distance
       // break if lower than currentDistance
       let swappedRoute = swap(routes, routes[i], routes[j])
-      swappedRoute.unshift(DEPOT_ID)
-      swappedRoute.push(DEPOT_ID)
-      const distance = findRouteDistance(swappedRoute)
+      const distance = findRouteDistance([DEPOT_ID, ...swappedRoute, DEPOT_ID])
 
       if (distance < currentDistance) {
         // if in tabu mode, insert pair into List
@@ -454,7 +447,8 @@ function swapRouteWithin(routes: number[], currentCount: number, currentDistance
             distance,
             tabuList,
           }
-        }        
+        }
+
         return {
           routes: swappedRoute,
           currentCount: ++currentCount,
