@@ -11,68 +11,67 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var XLSX = require("xlsx");
 var lodash_1 = require("lodash");
 var config_1 = require("./config");
-var fs = require("fs");
-var path = require("path");
 var Mode;
 (function (Mode) {
     Mode[Mode["Normal"] = 0] = "Normal";
     Mode[Mode["SimulatedAnneling"] = 1] = "SimulatedAnneling";
     Mode[Mode["TabuSearch"] = 2] = "TabuSearch";
 })(Mode || (Mode = {}));
-var savingsWB = XLSX.readFile(config_1.SAVINGS_OUTPUT_PATH);
-var savingsJSON = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true });
-var scheduleWB = XLSX.readFile(config_1.SCHEDULE_ORDER_PATH);
-var day1JSON = XLSX.utils.sheet_to_json(scheduleWB.Sheets['1'], { raw: true });
-var _a = formatSchedule(day1JSON, { sum: true }), vertices = _a.vertices, schedule = _a.schedule;
-var savingsTable = calculateSavingsTable(vertices, savingsJSON);
-// === TEST ===
-var savingsTableSheet = XLSX.utils.json_to_sheet(savingsTable);
-var savingsTableWB = {
-    SheetNames: ['1'],
-    Sheets: { '1': savingsTableSheet }
-};
-XLSX.writeFile(savingsTableWB, 'new_files/savings_table_1.xlsx');
-// === TEST ===
-var allRoutes = calculateAllRoutes(savingsTable, schedule, savingsJSON);
-console.log('All Routes:', allRoutes);
-var totalDistanceAll = 0;
-allRoutes.map(function (route) {
-    totalDistanceAll += route.totalDistance;
-    return;
-});
-console.log('All Routes Total Distance:', totalDistanceAll);
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes));
-var swapOptions = {
-    mode: Mode.Normal,
-};
-var swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON);
-var totalDistanceSwapped = 0;
-swappedWithin.map(function (route) {
-    totalDistanceSwapped += route.finalDistance;
-});
-console.log('Within Swapped Total Distance:', totalDistanceSwapped);
-console.log('Swapped Within:', swappedWithin);
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/swappedWithin.json'), JSON.stringify(swappedWithin));
-var relocated = relocate(allRoutes);
-var totalDistanceRelocated = 0;
-relocated.map(function (route) {
-    totalDistanceRelocated += route.newTotalDistance || route.totalDistance;
-});
-console.log('Relocated Swap Total Distance:', totalDistanceRelocated);
-console.log('Relocated:', relocated);
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated));
-var exchanged = exchange(allRoutes);
-var totalDistanceExchanged = 0;
-exchanged.map(function (route) {
-    totalDistanceExchanged += route.newTotalDistance || route.totalDistance;
-});
-console.log('Exchanged Total Distance:', totalDistanceExchanged);
-console.log('Exchanged:', exchanged);
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/exchanged.json'), JSON.stringify(exchanged));
-var test1 = findRouteDistance([config_1.DEPOT_ID, 199, 49, 73, config_1.DEPOT_ID]);
-var test2 = findRouteDistance([config_1.DEPOT_ID, 73, 49, 199, config_1.DEPOT_ID]);
-console.log('Test1:', test1);
-console.log('Test2:', test2);
+var savingsJSON;
+var schedule;
+function setSavingsJSON(wb) {
+    savingsJSON = XLSX.utils.sheet_to_json(wb.Sheets['1'], { raw: true });
+}
+// const savingsWB = XLSX.readFile(SAVINGS_OUTPUT_PATH)
+// const savingsJSON: COST_MATRIX_DATA[] = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true })
+// const scheduleWB = XLSX.readFile(SCHEDULE_ORDER_PATH)
+// const day1JSON: Schedule_Data[] = XLSX.utils.sheet_to_json(scheduleWB.Sheets['1'], { raw: true })
+// const { vertices, schedule } = formatSchedule(day1JSON, { sum: true })
+// const savingsTable = calculateSavingsTable(vertices, savingsJSON)
+// // === TEST ===
+// const savingsTableSheet = XLSX.utils.json_to_sheet(savingsTable)
+// const savingsTableWB: XLSX.WorkBook = {
+//   SheetNames: ['1'],
+//   Sheets: { '1': savingsTableSheet}
+// }
+// XLSX.writeFile(savingsTableWB, 'new_files/savings_table_1.xlsx')
+// // === TEST ===
+// const allRoutes = calculateAllRoutes(savingsTable, schedule, savingsJSON)
+// console.log('All Routes:', allRoutes)
+// let totalDistanceAll = 0
+// allRoutes.map(route => {
+//   totalDistanceAll += route.totalDistance
+//   return
+// })
+// console.log('All Routes Total Distance:', totalDistanceAll)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes))
+// let swapOptions: SwapOptions = {
+//   mode: Mode.Normal,
+// }
+// const swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON)
+// let totalDistanceSwapped = 0
+// swappedWithin.map(route => {
+//   totalDistanceSwapped += route.finalDistance
+// })
+// console.log('Within Swapped Total Distance:', totalDistanceSwapped)
+// console.log('Swapped Within:', swappedWithin)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/EX_swappedWithin.json'), JSON.stringify(swappedWithin))
+// const relocated = relocate(allRoutes, swapOptions)
+// let totalDistanceRelocated = 0
+// relocated.map(route => {
+//   totalDistanceRelocated += route.newTotalDistance || route.totalDistance
+// })
+// console.log('Relocated Swap Total Distance:', totalDistanceRelocated)
+// console.log('Relocated:', relocated)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/EX_relocated.json'), JSON.stringify(relocated))
+// const exchanged = exchange(allRoutes, swapOptions)
+// let totalDistanceExchanged = 0
+// exchanged.map(route => {
+//   totalDistanceExchanged += route.newTotalDistance || route.totalDistance
+// })
+// console.log('Exchanged Total Distance:', totalDistanceExchanged)
+// console.log('Exchanged:', exchanged)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/EX_exchanged.json'), JSON.stringify(exchanged))
 // for (let i = 0; i < allRoutes.length; i++) {
 //   const allRouteTotalDistance = allRoutes[i].totalDistance
 //   const exchangedTotalDistance = exchanged[i].newTotalDistance || exchanged[i].totalDistance
@@ -92,7 +91,7 @@ function formatSchedule(schedule, _a) {
     var sum = (_a === void 0 ? { sum: false } : _a).sum;
     var scheduleObject = {};
     if (sum) {
-        var vertices_1 = schedule.map(function (_a) {
+        var vertices = schedule.map(function (_a) {
             var No = _a.No, KG = _a.KG;
             if (KG === 0)
                 return undefined;
@@ -105,15 +104,15 @@ function formatSchedule(schedule, _a) {
             return No;
             // remove duplicate after sum
         }).filter(function (no, index, array) { return array.indexOf(no) === index && no !== undefined; });
-        return { vertices: vertices_1, schedule: scheduleObject };
+        return { vertices: vertices, schedule: scheduleObject };
     }
     else {
-        var vertices_2 = schedule.map(function (_a) {
+        var vertices = schedule.map(function (_a) {
             var No = _a.No, KG = _a.KG;
             scheduleObject[No] = { totalKG: KG, remainingKG: KG };
             return No;
         });
-        return { vertices: vertices_2, schedule: scheduleObject };
+        return { vertices: vertices, schedule: scheduleObject };
     }
 }
 function calculateSavingsTable(vertices, savingsJSON) {
@@ -292,7 +291,7 @@ function withinTourInsertion(vehicles, options, fullSavingsTable) {
         var distance = totalDistance;
         var routes = sequence;
         var tabuList = [];
-        var maxSwapTimes = Math.floor(sequence.length * (sequence.length - 1) / 4);
+        var maxSwapTimes = options.maxSwapTimes || Math.floor(sequence.length * (sequence.length - 1) / 2);
         while (currentCount < maxSwapTimes) {
             (_a = swapRouteWithin(routes, currentCount, distance, options), routes = _a.routes, currentCount = _a.currentCount, distance = _a.distance, tabuList = _a.tabuList);
             options.tabuList = tabuList;
@@ -307,7 +306,7 @@ function withinTourInsertion(vehicles, options, fullSavingsTable) {
     });
 }
 function swapRouteWithin(routes, currentCount, currentDistance, options) {
-    var maxSwapTimes = Math.floor(routes.length * (routes.length - 1) / 4);
+    var maxSwapTimes = options.maxSwapTimes || Math.floor(routes.length * (routes.length - 1) / 2);
     var annelingProb = options.annelingProb || 0.2;
     var tabuTenure = options.tabuTenure || 10;
     var tabuList = options.tabuList || [];
@@ -324,8 +323,11 @@ function swapRouteWithin(routes, currentCount, currentDistance, options) {
                 var num2_1 = routes[j];
                 var skip_1 = false;
                 tabuList = tabuList.map(function (item) {
-                    // if in list, skip it
-                    if (item.pair === [num1_1, num2_1] || item.pair === [num2_1, num1_1]) {
+                    // // if in list, skip it
+                    // if (item.pair === [num1, num2] || item.pair === [num2, num1]) {
+                    // if in tabuList, skip
+                    if (item.pair[0] === num1_1 || item.pair[0] === num2_1
+                        || item.pair[1] === num1_1 || item.pair[1] === num2_1) {
                         skip_1 = true;
                     }
                     // decrement
@@ -422,12 +424,6 @@ function findDistance(point1, point2) {
         point2 = temp;
     }
     var index = (point1 - 1) * config_1.TOTAL_NODES + point2 - 1;
-    // if (!savingsJSON[index].Total_Length) {
-    //   console.log('Savings JSON at index:', savingsJSON[index])
-    //   console.log(index)
-    //   console.log(point1)
-    //   console.log(point2)
-    // }
     if (!savingsJSON[index]) {
         console.log("Can't find index:", index);
     }
@@ -454,12 +450,13 @@ function populateWeightToSequence(sequence) {
         };
     });
 }
-// TODO: Accept param for maxSwapTimes
-// TODO: Defaults to max
 // NOTE:Relocate success = go to next base vehicle's destination
-function relocate(vehicles) {
-    var maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4);
+function relocate(vehicles, options) {
+    var maxSwapTimes = options.maxSwapTimes || 999999999;
     var swapTimes = 0;
+    var annelingProb = options.annelingProb || 0.2;
+    var tabuTenure = options.tabuTenure || 10;
+    var tabuList = [];
     baseVehicleLoop: 
     // base vehicle to swap
     for (var i = 0; i < vehicles.length - 1; i++) {
@@ -469,8 +466,7 @@ function relocate(vehicles) {
         // skip over if length is 1 
         if (sequence.length === 1)
             continue;
-        // each destination excluding DEPOT
-        for (var j = 0; j < sequence.length; j++) {
+        var _loop_2 = function (j) {
             // base vehicle distance can be changed after each destination ID
             // therefore place in inner loop
             var baseVehicleDistance = baseVehicle.newTotalDistance || baseVehicle.totalDistance;
@@ -478,6 +474,23 @@ function relocate(vehicles) {
             var baseSequenceCopy = sequence.slice();
             var relocationBaseID = baseSequenceCopy.splice(j, 1)[0];
             var removedBasedDistance = findRouteDistance([config_1.DEPOT_ID].concat(baseSequenceCopy, [config_1.DEPOT_ID]));
+            // Tabu mode check
+            if (options.mode === Mode.TabuSearch) {
+                var skip_2 = false;
+                tabuList = tabuList.map(function (item) {
+                    // number to relocate in list, skip this number
+                    if (item.number === relocationBaseID)
+                        skip_2 = true;
+                    if (--item.turnsLeft < 1)
+                        return null;
+                    return item;
+                }).filter(function (item) { return item; });
+                // skip to next number
+                if (skip_2) {
+                    swapTimes++;
+                    return "continue";
+                }
+            }
             // the rest of the vehicles
             restOfVehiclesLoop: for (var k = i + 1; k < vehicles.length; k++) {
                 var destinationSequence = vehicles[k].newSequence || flattenRouteWithoutDepot(vehicles[k].route);
@@ -493,9 +506,9 @@ function relocate(vehicles) {
                     // conclusive of last position after last existing destination
                     for (var l = 0; l <= destinationSequence.length; l++) {
                         // stop when exceeded
-                        if (swapTimes > maxSwapTimes) {
+                        if (swapTimes++ > maxSwapTimes) {
                             i = vehicles.length;
-                            break baseVehicleLoop;
+                            return "break-baseVehicleLoop";
                         }
                         // insert relocation ID
                         var relocatedDestinationSequence = destinationSequence.slice();
@@ -505,6 +518,10 @@ function relocate(vehicles) {
                         var oldTotalDistance = baseVehicleDistance + destinationDistance;
                         var newTotalDistance = removedBasedDistance + newDestinationDistance;
                         if (oldTotalDistance > newTotalDistance) {
+                            // if in tabu mode, insert values into list as well
+                            if (options.mode === Mode.TabuSearch) {
+                                tabuList.push({ number: relocationBaseID, turnsLeft: tabuTenure });
+                            }
                             // use new one
                             vehicles[i].newSequence = baseSequenceCopy;
                             vehicles[i].newTotalDistance = removedBasedDistance;
@@ -512,21 +529,45 @@ function relocate(vehicles) {
                             vehicles[k].newSequence = relocatedDestinationSequence;
                             vehicles[k].newTotalDistance = newDestinationDistance;
                             vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight;
-                            // === stop rest of vehicles loop -> goto next destination in base vehicle
+                            // stop rest of vehicles loop -> goto next destination in base vehicle
                             break restOfVehiclesLoop;
+                        }
+                        else if (options.mode === Mode.SimulatedAnneling) {
+                            var random = Math.random();
+                            // do the same as success (same code as above)
+                            if (random < annelingProb) {
+                                // use new one
+                                vehicles[i].newSequence = baseSequenceCopy;
+                                vehicles[i].newTotalDistance = removedBasedDistance;
+                                vehicles[i].newWeightAvailable = vehicles[i].weightAvailable + sequenceWithWeight[j].weight;
+                                vehicles[k].newSequence = relocatedDestinationSequence;
+                                vehicles[k].newTotalDistance = newDestinationDistance;
+                                vehicles[k].newWeightAvailable = destinationWeightAvailable - sequenceWithWeight[j].weight;
+                                // stop rest of vehicles loop -> goto next destination in base vehicle
+                                break restOfVehiclesLoop;
+                            }
                         }
                     }
                 }
+            }
+        };
+        // each destination excluding DEPOT
+        for (var j = 0; j < sequence.length; j++) {
+            var state_2 = _loop_2(j);
+            switch (state_2) {
+                case "break-baseVehicleLoop": break baseVehicleLoop;
             }
         }
     }
     return vehicles;
 }
-// TODO: Accept param for maxSwapTimes
 // Defaults to max
-function exchange(vehicles) {
-    var maxSwapTimes = Math.floor(vehicles.length * (vehicles.length - 1) / 4);
+function exchange(vehicles, options) {
+    var maxSwapTimes = options.maxSwapTimes || 999999999;
     var swapTimes = 0;
+    var annelingProb = options.annelingProb || 0.2;
+    var tabuTenure = options.tabuTenure || 10;
+    var tabuList = [];
     baseVehicleLoop: 
     // base vehicle to swap
     for (var i = 0; i < vehicles.length - 1; i++) {
@@ -538,8 +579,7 @@ function exchange(vehicles) {
         // skip if length is 1
         if (sequence.length === 1)
             continue;
-        // each destination excluding DEPOT
-        for (var j = 0; j < sequence.length; j++) {
+        var _loop_3 = function (j) {
             // remove ID to put in other vehicle
             var baseSequenceCopy = sequence.slice();
             var relocationBaseID = baseSequenceCopy.splice(j, 1)[0];
@@ -554,17 +594,41 @@ function exchange(vehicles) {
                 // skip over if length is 1
                 if (sequence.length === 1)
                     continue;
-                // each destination in other vehicles
-                for (var l = 0; l < destinationSequence.length; l++) {
+                var _loop_4 = function (l) {
                     // stop when exceeded
-                    if (swapTimes > maxSwapTimes) {
+                    if (swapTimes++ > maxSwapTimes) {
                         i = vehicles.length;
-                        break baseVehicleLoop;
+                        return "break-baseVehicleLoop";
                     }
                     var exchangeDestinationSequenceCopy = destinationSequence.slice();
                     var exchangeDestinationID = exchangeDestinationSequenceCopy.splice(l, 1)[0];
                     var exchangeDestinationIDWeight = destinationSequenceWithWeight[l].weight;
                     var exchangeDestinationWeightAvailable = destinationWeightAvailable + exchangeDestinationIDWeight;
+                    // Tabu mode check
+                    if (options.mode === Mode.TabuSearch) {
+                        var skipDestination_1 = false;
+                        var skipBase_1 = false;
+                        tabuList = tabuList.map(function (item) {
+                            // number to relocate in list, skip this number
+                            if (item.number === relocationBaseID)
+                                skipBase_1 = true;
+                            if (item.number === exchangeDestinationID)
+                                skipDestination_1 = true;
+                            if (--item.turnsLeft < 1)
+                                return null;
+                            return item;
+                        }).filter(function (item) { return item; });
+                        // skip to next base number
+                        if (skipBase_1) {
+                            swapTimes++;
+                            return "break-restOfVehiclesLoop";
+                        }
+                        // skip to next destination number
+                        if (skipDestination_1) {
+                            swapTimes++;
+                            return "continue";
+                        }
+                    }
                     // exchange if can afford
                     if (removedBasedWeightAvailable > exchangeDestinationIDWeight &&
                         exchangeDestinationWeightAvailable > removedBaseIDWeight) {
@@ -580,19 +644,60 @@ function exchange(vehicles) {
                         var newTotalDistance = newBaseTotalDistance + newDestinationTotalDistance;
                         // use new sequence if it has lower distance
                         if (newTotalDistance < oldTotalDistance) {
+                            // if in tabu mode, insert both values into list
+                            if (options.mode === Mode.TabuSearch) {
+                                tabuList.push({ number: relocationBaseID, turnsLeft: tabuTenure });
+                                tabuList.push({ number: exchangeDestinationID, turnsLeft: tabuTenure });
+                            }
                             vehicles[i].newSequence = newBaseSequence;
                             vehicles[i].newTotalDistance = newBaseTotalDistance;
                             vehicles[i].newWeightAvailable = newBaseWeightAvailable;
                             vehicles[k].newSequence = newDestinationSequence;
                             vehicles[k].newTotalDistance = newDestinationTotalDistance;
                             vehicles[k].newWeightAvailable = newDestinationWeightAvailable;
-                            break restOfVehiclesLoop;
+                            return "break-restOfVehiclesLoop";
+                        }
+                        else if (options.mode === Mode.SimulatedAnneling) {
+                            var random = Math.random();
+                            // do the same as success (same code as above)
+                            if (random < annelingProb) {
+                                vehicles[i].newSequence = newBaseSequence;
+                                vehicles[i].newTotalDistance = newBaseTotalDistance;
+                                vehicles[i].newWeightAvailable = newBaseWeightAvailable;
+                                vehicles[k].newSequence = newDestinationSequence;
+                                vehicles[k].newTotalDistance = newDestinationTotalDistance;
+                                vehicles[k].newWeightAvailable = newDestinationWeightAvailable;
+                                return "break-restOfVehiclesLoop";
+                            }
                         }
                     }
+                };
+                // each destination in other vehicles
+                for (var l = 0; l < destinationSequence.length; l++) {
+                    var state_3 = _loop_4(l);
+                    switch (state_3) {
+                        case "break-baseVehicleLoop": return state_3;
+                        case "break-restOfVehiclesLoop": break restOfVehiclesLoop;
+                    }
                 }
+            }
+        };
+        // each destination excluding DEPOT
+        for (var j = 0; j < sequence.length; j++) {
+            var state_4 = _loop_3(j);
+            switch (state_4) {
+                case "break-baseVehicleLoop": break baseVehicleLoop;
             }
         }
     }
     return vehicles;
 }
+module.exports = {
+    formatSchedule: formatSchedule,
+    calculateSavingsTable: calculateSavingsTable,
+    calculateAllRoutes: calculateAllRoutes,
+    withinTourInsertion: withinTourInsertion,
+    relocate: relocate,
+    exchange: exchange,
+};
 //# sourceMappingURL=saving_algorithm.js.map
