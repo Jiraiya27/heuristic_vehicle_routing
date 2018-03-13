@@ -56,3 +56,9 @@ typings/
 
 # dotenv environment variables file
 .env
+
+# generated files
+new_files/
+dist/
+build/
+client/test_files/
