@@ -59,6 +59,6 @@ typings/
 
 # generated files
 new_files/
-dist/
+# dist/
 build/
 client/test_files/
