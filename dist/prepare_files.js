@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var XLSX = require("xlsx");
-var lodash_1 = require("lodash");
 var config_1 = require("./config");
 function createSavingsFile() {
     var workbook = XLSX.readFile(config_1.COST_MATRIX_PATH);
@@ -15,13 +14,13 @@ function createSavingsFile() {
         Sheets: { '1': savingsSheet }
     };
     XLSX.writeFile(savingsWB, 'new_files/savings_cost.xlsx');
-    var sortedSavingsJson = sortSavingsFile(savingsJson);
-    var sortedSavingsSheet = XLSX.utils.json_to_sheet(sortedSavingsJson);
-    var sortedSavingsWB = {
-        SheetNames: ['1'],
-        Sheets: { '1': sortedSavingsSheet }
-    };
-    XLSX.writeFile(sortedSavingsWB, 'new_files/savings_cost_sorted.xlsx');
+    // const sortedSavingsJson = sortSavingsFile(savingsJson)
+    // const sortedSavingsSheet = XLSX.utils.json_to_sheet(sortedSavingsJson)
+    // const sortedSavingsWB: XLSX.WorkBook = {
+    //   SheetNames: ['1'],
+    //   Sheets: { '1': sortedSavingsSheet }
+    // }
+    // XLSX.writeFile(sortedSavingsWB, 'new_files/savings_cost_sorted.xlsx')
 }
 /** Calculates savings cost according to formula:
  *
@@ -58,12 +57,15 @@ function calculateSavingsCost(sheet) {
     // return newSheet
     return sheet;
 }
-function sortSavingsFile(sheet) {
-    return lodash_1.orderBy(sheet, ['Savings_Cost'], ['desc']);
-}
+// function sortSavingsFile (sheet: COST_MATRIX_DATA[]) : COST_MATRIX_DATA[] {
+//   return orderBy(sheet, ['Savings_Cost'], ['desc'])
+// }
 // console.log(sheet['B13'])
 // console.log(XLSX.utils.sheet_to_json(sheet).length)
 // console.log(workbook.SheetNames)
 // calculateSavingsCost(jsonSheet)
-createSavingsFile();
+// createSavingsFile()
+module.exports = {
+    calculateSavingsCost: calculateSavingsCost,
+};
 //# sourceMappingURL=prepare_files.js.map

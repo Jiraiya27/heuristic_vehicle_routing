@@ -81,63 +81,68 @@ enum Mode {
   TabuSearch,
 }
 
-// let savingsJSON: COST_MATRIX_DATA[]
-// // let schedule: Schedule_Object
+let savingsJSON: COST_MATRIX_DATA[]
+let schedule: Schedule_Object
 
-// function setSavingsJSON(wb: XLSX.WorkBook) {
-//   savingsJSON = XLSX.utils.sheet_to_json(wb.Sheets['1'], { raw: true })
-// }
 
-// function extractScheduleJSON(wb: XLSX.WorkBook) : Schedule_Data[] {
-//   return XLSX.utils.sheet_to_json(wb.Sheets['1'], { raw: true })
-// }
-
-const savingsWB = XLSX.readFile(SAVINGS_OUTPUT_PATH)
-const savingsJSON: COST_MATRIX_DATA[] = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true })
-
-const scheduleWB = XLSX.readFile(SCHEDULE_ORDER_PATH)
-const day1JSON: Schedule_Data[] = XLSX.utils.sheet_to_json(scheduleWB.Sheets['1'], { raw: true })
-const { vertices, schedule } = formatSchedule(day1JSON, { sum: true })
-const savingsTable = calculateSavingsTable(vertices, savingsJSON)
-// === TEST ===
-const savingsTableSheet = XLSX.utils.json_to_sheet(savingsTable)
-const savingsTableWB: XLSX.WorkBook = {
-  SheetNames: ['1'],
-  Sheets: { '1': savingsTableSheet}
-}
-XLSX.writeFile(savingsTableWB, 'new_files/savings_table_1.xlsx')
-// === TEST ===
-const allRoutes = calculateAllRoutes(savingsTable, schedule, savingsJSON)
-console.log('All Routes:', allRoutes)
-let totalDistanceAll = 0
-allRoutes.map(route => {
-  totalDistanceAll += route.totalDistance
-  return
-})
-console.log('All Routes Total Distance:', totalDistanceAll)
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes))
-
-let swapOptions: SwapOptions = {
-  mode: Mode.TabuSearch,
+function setSavingsJSON(json: COST_MATRIX_DATA[]) {
+  savingsJSON = json
 }
 
-const swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON)
-let totalDistanceSwapped = 0
-swappedWithin.map(route => {
-  totalDistanceSwapped += route.finalDistance
-})
-console.log('Within Swapped Total Distance:', totalDistanceSwapped)
-console.log('Swapped Within:', swappedWithin)
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/swappedWithin.json'), JSON.stringify(swappedWithin))
+function setSchedule(obj: Schedule_Object) {
+  schedule = obj
+}
 
-const relocated = relocate(allRoutes, swapOptions)
-let totalDistanceRelocated = 0
-relocated.map(route => {
-  totalDistanceRelocated += route.newTotalDistance || route.totalDistance
-})
-console.log('Relocated Swap Total Distance:', totalDistanceRelocated)
-console.log('Relocated:', relocated)
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated))
+
+// const savingsWB = XLSX.readFile(SAVINGS_OUTPUT_PATH)
+// const savingsJSON: COST_MATRIX_DATA[] = XLSX.utils.sheet_to_json(savingsWB.Sheets['1'], { raw: true })
+
+// const scheduleWB = XLSX.readFile(SCHEDULE_ORDER_PATH)
+// const day1JSON: Schedule_Data[] = XLSX.utils.sheet_to_json(scheduleWB.Sheets['1'], { raw: true })
+// const { vertices, schedule } = formatSchedule(day1JSON, { sum: true })
+// const savingsTable = calculateSavingsTable(vertices, savingsJSON)
+// // === TEST ===
+// const savingsTableSheet = XLSX.utils.json_to_sheet(savingsTable)
+// const savingsTableWB: XLSX.WorkBook = {
+//   SheetNames: ['1'],
+//   Sheets: { '1': savingsTableSheet}
+// }
+// XLSX.writeFile(savingsTableWB, 'new_files/savings_table_1.xlsx')
+// // === TEST ===
+// const allRoutes = calculateAllRoutes(savingsTable, schedule, savingsJSON)
+// console.log('All Routes:', allRoutes)
+// let totalDistanceAll = 0
+// allRoutes.map(route => {
+//   totalDistanceAll += route.totalDistance
+//   return
+// })
+// console.log('All Routes Total Distance:', totalDistanceAll)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/allRoutes.json'), JSON.stringify(allRoutes))
+
+// let swapOptions: SwapOptions = {
+//   mode: Mode.TabuSearch,
+//   maxSwapTimes: 1,
+//   annelingProb: 0.2,
+//   tabuTenure: 3
+// }
+
+// const swappedWithin = withinTourInsertion(allRoutes, swapOptions, savingsJSON)
+// let totalDistanceSwapped = 0
+// swappedWithin.map(route => {
+//   totalDistanceSwapped += route.finalDistance
+// })
+// console.log('Within Swapped Total Distance:', totalDistanceSwapped)
+// console.log('Swapped Within:', swappedWithin)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/swappedWithin.json'), JSON.stringify(swappedWithin))
+
+// const relocated = relocate(allRoutes, swapOptions)
+// let totalDistanceRelocated = 0
+// relocated.map(route => {
+//   totalDistanceRelocated += route.newTotalDistance || route.totalDistance
+// })
+// console.log('Relocated Swap Total Distance:', totalDistanceRelocated)
+// console.log('Relocated:', relocated)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'), JSON.stringify(relocated))
 
 // for (let i = 0; i < allRoutes.length; i++) {
 //   const allRouteTotalDistance = allRoutes[i].totalDistance
@@ -155,16 +160,16 @@ fs.writeFileSync(path.resolve(__dirname, '../client/test_files/relocated.json'),
 //   }
 // }
 
-const exchanged = exchange(allRoutes, swapOptions)
-let totalDistanceExchanged = 0
-exchanged.map(route => {
-  totalDistanceExchanged += route.newTotalDistance || route.totalDistance
-})
-console.log('Exchanged Total Distance:', totalDistanceExchanged)
-console.log('Exchanged:', exchanged)
-fs.writeFileSync(path.resolve(__dirname, '../client/test_files/EX_exchanged.json'), JSON.stringify(exchanged))
+// const exchanged = exchange(allRoutes, swapOptions)
+// let totalDistanceExchanged = 0
+// exchanged.map(route => {
+//   totalDistanceExchanged += route.newTotalDistance || route.totalDistance
+// })
+// console.log('Exchanged Total Distance:', totalDistanceExchanged)
+// console.log('Exchanged:', exchanged)
+// fs.writeFileSync(path.resolve(__dirname, '../client/test_files/EX_exchanged.json'), JSON.stringify(exchanged))
 
-function formatSchedule(schedule: Schedule_Data[], { sum }: Format_Options = { sum: false }) {
+function formatSchedule(schedule: Schedule_Data[], { sum }: Format_Options = { sum: true }) {
   const scheduleObject: Schedule_Object = {}
   if (sum) {
     const vertices = schedule.map(({ No, KG }) => {
@@ -357,7 +362,7 @@ function calculateAllRoutes(table: COST_MATRIX_DATA[], schedule: Schedule_Object
 
 // TODO: Return as an additional field to existing ROute[] or as a new type
 function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavingsTable: COST_MATRIX_DATA[]) {
-  let totalCount = 0
+  // let totalCount = 0
   let answer = vehicles.map(vehicle => {
     const totalLength = vehicle.route.length
     const totalDistance = vehicle.totalDistance
@@ -384,7 +389,9 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
     let distance = totalDistance
     let routes: number[] = sequence
     let tabuList: TabuItem[]|undefined = []
-    const maxSwapTimes = options.maxSwapTimes || Math.floor(sequence.length * (sequence.length - 1) / 2)
+    const maxSwapTimes = options.maxSwapTimes 
+      ? Math.floor(sequence.length * (sequence.length - 1) / 2 * options.maxSwapTimes) 
+      : Math.floor(sequence.length * (sequence.length - 1) / 2)
     while(currentCount < maxSwapTimes) {
       ({ routes, currentCount, distance, tabuList } = swapRouteWithin(routes, currentCount, distance, options))
       options.tabuList = tabuList
@@ -397,12 +404,14 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
       finalDistance: distance
     }
   })
-  console.log('Total Count:', totalCount)
+  // console.log('Total Count:', totalCount)
   return answer
 }
 
 function swapRouteWithin(routes: number[], currentCount: number, currentDistance: number, options: SwapOptions) {
-  const maxSwapTimes = options.maxSwapTimes || Math.floor(routes.length * (routes.length - 1) / 2)
+  const maxSwapTimes = options.maxSwapTimes 
+      ? Math.floor(routes.length * (routes.length - 1) / 2 * options.maxSwapTimes) 
+      : Math.floor(routes.length * (routes.length - 1) / 2)
   const annelingProb = options.annelingProb || 0.2
   const tabuTenure = options.tabuTenure || 3
   let tabuList = options.tabuList || []
@@ -547,18 +556,14 @@ function populateWeightToSequence(sequence: number[]) {
 
 // NOTE:Relocate success = go to next base vehicle's destination
 function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRoute[] {
-  const maxSwapTimes = options.maxSwapTimes || 999999999
-  let swapTimes = 0
   const annelingProb = options.annelingProb || 0.2
-  const tabuTenure = options.tabuTenure || 10
+  const tabuTenure = options.tabuTenure || 3
   let tabuList: Tabu[] = []
   
-  baseVehicleLoop:
   // base vehicle to swap
   for (let i = 0; i < vehicles.length - 1; i++) {
     let sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route)
     let sequenceWithWeight = populateWeightToSequence(sequence)
-    const baseVehicle = { ...vehicles[i], sequence }
     
     // skip over if length is 1 
     if (sequence.length === 1) continue
@@ -585,7 +590,7 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
 
         // skip to next number
         if (skip) {
-          swapTimes++
+          // swapTimes++
           continue
         }
       }
@@ -603,15 +608,18 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
 
         // relocate if destination vehicle can afford
         if (sequenceWithWeight[j].weight < destinationWeightAvailable) {
+          // max swap times as % of total length of destination sequence
+          const maxSwapTimes = Math.floor(destinationSequence.length * (options.maxSwapTimes || 1))
+          let swapTimes = 0
 
           // each destination in other vehicles
           // conclusive of last position after last existing destination
           for(let l = 0; l <= destinationSequence.length; l++ ) {
 
             // stop when exceeded
+            // moves to next destination vehicle
             if (swapTimes++ > maxSwapTimes) {
-              i = vehicles.length
-              break baseVehicleLoop;
+              break
             }
 
             // insert relocation ID
@@ -665,18 +673,14 @@ function relocate(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
 
 // Defaults to max
 function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRoute[] {
-  const maxSwapTimes = options.maxSwapTimes || 999999999
-  let swapTimes = 0
   const annelingProb = options.annelingProb || 0.2
-  const tabuTenure = options.tabuTenure || 10
+  const tabuTenure = options.tabuTenure || 3
   let tabuList: Tabu[] = []
   
-  baseVehicleLoop:
   // base vehicle to swap
   for (let i = 0; i < vehicles.length - 1; i++) {
     let sequence = vehicles[i].newSequence || flattenRouteWithoutDepot(vehicles[i].route)
     let sequenceWithWeight = populateWeightToSequence(sequence)
-    const baseVehicle = { ...vehicles[i], sequence }
     
     // skip if length is 1
     if (sequence.length === 1) continue
@@ -702,13 +706,16 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
         // skip over if length is 1
         if (sequence.length === 1) continue
 
+        // max swap times as % of total length of destination sequence
+        const maxSwapTimes = Math.floor(destinationSequence.length * (options.maxSwapTimes || 1))
+        let swapTimes = 0
+
         // each destination in other vehicles
         for(let l = 0; l < destinationSequence.length; l++ ) {
 
           // stop when exceeded
           if (swapTimes++ > maxSwapTimes) {
-            i = vehicles.length
-            break baseVehicleLoop;
+            break
           }
 
           const exchangeDestinationSequenceCopy = [...destinationSequence]
@@ -797,7 +804,8 @@ function exchange(vehicles: RelocateRoute[], options: SwapOptions) : RelocateRou
 }
 
 module.exports = {
-  // setSavingsJSON,
+  setSavingsJSON,
+  setSchedule,
   formatSchedule,
   calculateSavingsTable,
   calculateAllRoutes,

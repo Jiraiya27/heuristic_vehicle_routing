@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { orderBy } from 'lodash'
+// import { orderBy } from 'lodash'
 import { TOTAL_NODES, DEPOT_ID, COST_MATRIX_PATH, SAVINGS_COST_PATH } from './config'
 
 interface COST_MATRIX_DATA {
@@ -24,13 +24,13 @@ function createSavingsFile () {
   }
   XLSX.writeFile(savingsWB, 'new_files/savings_cost.xlsx')
 
-  const sortedSavingsJson = sortSavingsFile(savingsJson)
-  const sortedSavingsSheet = XLSX.utils.json_to_sheet(sortedSavingsJson)
-  const sortedSavingsWB: XLSX.WorkBook = {
-    SheetNames: ['1'],
-    Sheets: { '1': sortedSavingsSheet }
-  }
-  XLSX.writeFile(sortedSavingsWB, 'new_files/savings_cost_sorted.xlsx')
+  // const sortedSavingsJson = sortSavingsFile(savingsJson)
+  // const sortedSavingsSheet = XLSX.utils.json_to_sheet(sortedSavingsJson)
+  // const sortedSavingsWB: XLSX.WorkBook = {
+  //   SheetNames: ['1'],
+  //   Sheets: { '1': sortedSavingsSheet }
+  // }
+  // XLSX.writeFile(sortedSavingsWB, 'new_files/savings_cost_sorted.xlsx')
 }
 
 /** Calculates savings cost according to formula:  
@@ -69,12 +69,17 @@ function calculateSavingsCost(sheet: COST_MATRIX_DATA[]) : COST_MATRIX_DATA[] {
   return sheet
 }
 
-function sortSavingsFile (sheet: COST_MATRIX_DATA[]) : COST_MATRIX_DATA[] {
-  return orderBy(sheet, ['Savings_Cost'], ['desc'])
-}
+// function sortSavingsFile (sheet: COST_MATRIX_DATA[]) : COST_MATRIX_DATA[] {
+//   return orderBy(sheet, ['Savings_Cost'], ['desc'])
+// }
 
 // console.log(sheet['B13'])
 // console.log(XLSX.utils.sheet_to_json(sheet).length)
 // console.log(workbook.SheetNames)
 // calculateSavingsCost(jsonSheet)
-createSavingsFile()
+// createSavingsFile()
+
+module.exports = {
+  calculateSavingsCost,
+  createSavingsFile,
+}
