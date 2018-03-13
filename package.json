@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "test": "node dist/saving_algorithm.js",
+    "prestart": "tsc",
     "start": "node scripts/start.js",
     "build": "node scripts/build.js",
     "test-react": "node scripts/test.js --env=jsdom"
