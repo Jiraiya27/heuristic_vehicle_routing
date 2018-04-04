@@ -144,11 +144,13 @@ export default class Main extends Component {
     // if (!_.isEqual(originalRoute, finalRoute)) console.log('Index:', originalRoute, finalRoute)
     return (
       <div key={divKey}>
+        <span key={'displaySpanKey'+ routeIndex + '-1'}>261></span>
         {finalRoute.map((pair, index) => {
           const spanKey = 'displaySpanKey' + routeIndex + index
-          if (index === finalRoute.length - 1) return (<span key={spanKey}>{pair}</span>)
+          // if (index === finalRoute.length - 1) return (<span key={spanKey}>{pair}</span>)
           return (<span key={spanKey}>{pair}></span>)
         })}
+        <span key={'displaySpanKey' + routeIndex + '+1'}>261</span>
         {'\t Total Distance:' + finalDistance}
         {/* {'\t Weight:' + (2000 - Number(weightAvailable))} */}
       </div>
