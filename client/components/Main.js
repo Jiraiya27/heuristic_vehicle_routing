@@ -99,7 +99,13 @@ export default class Main extends Component {
   // Display all Route functions (savings list)
   displayAllRoutes = (allRoutes) => {
     const routeData = allRoutes.map(this.displayRoute)
-    const totalDistanceDiv = allRoutes.length > 0 ? ('Total Distance: ' + this.getTotalDistance(allRoutes)) : null
+    const totalDistanceDiv = allRoutes.length > 0 ? (
+      <p>
+        Total Distance: {this.getTotalDistance(allRoutes)}
+        <br />
+        Total Route: {allRoutes.length}
+      </p>
+    ) : null
     return (
       <div>
         {routeData}
@@ -128,7 +134,11 @@ export default class Main extends Component {
     const routeData = swapped.map(this.displaySwappedWithin)
     const totalDistanceDiv = swapped.length > 0
       ? (
-        <p>Total Distance: {this.getTotalDistance(swapped)} <br /></p>
+        <p>
+          Total Distance: {this.getTotalDistance(swapped)}
+          <br />
+          Total Route: {swapped.length}
+        </p>
       ) : null
     const title = swapped.length > 0 ? <h4>Within Tour Insertion</h4> : null
     return (
@@ -161,7 +171,11 @@ export default class Main extends Component {
     const routeData = relocated.map(this.displayRelocatedMap)
     const totalDistanceDiv = relocated.length > 0
       ? (
-        <p>Total Distance: {this.getTotalDistance(relocated)} <br /></p>
+        <p>
+          Total Distance: {this.getTotalDistance(relocated)}
+          <br />
+          Total Route: {relocated.length}
+        </p>
       ) : null
     const title = relocated.length > 0 ? <h4>{name}</h4> : null
     return (
