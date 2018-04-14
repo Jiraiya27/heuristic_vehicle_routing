@@ -282,8 +282,8 @@ export default class Main extends Component {
         <button type="button" onClick={this.calculateEverything}>Calculate</button>
         <br/>
         <br/>
-        <H3>Savings</H3>
-        {this.displayAllRoutes(this.state.allRoutes)}
+        {/* <H3>Savings</H3> */}
+        {/* {this.displayAllRoutes(this.state.allRoutes)} */}
         <H3>Normal</H3>
         {this.displaySwapped(this.state.normalSwapped)}
         {this.displayRelocated(this.state.normalRelocated, 'Relocate')}
