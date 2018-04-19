@@ -160,7 +160,6 @@ export default class Main extends Component {
         return prev + val.weight
       }, 0)
     }
-    console.log('Total weight:', totalWeight)
     // if (!_.isEqual(originalRoute, finalRoute)) console.log('Index:', originalRoute, finalRoute)
     return (
       <div key={divKey}>
@@ -209,6 +208,8 @@ export default class Main extends Component {
         if (index === newSequence.length - 1) return (<span key={spanKey}>{pair}</span>)
         return (<spam key={spanKey}>{pair}></spam>)
       })
+      numbers.unshift(<span key={'displaySpanKey' + routeIndex + '-1'}>261></span>)
+      numbers.push(<span key={'displaySpanKey' + routeIndex + '+1'}>>261</span>)
     } else {
       numbers = route.map((pair, index) => {
         const spanKey = 'displaySpanKey' + routeIndex + index
