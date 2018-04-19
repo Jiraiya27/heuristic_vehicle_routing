@@ -372,12 +372,26 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
 
     // no swap for single destination routes
     if (totalLength === 2) {
-      // return vehicle
-      return {
-        originalRoute: sequence,
-        finalRoute: sequence,
-        originalDistance: totalDistance,
-        finalDistance: totalDistance
+      // if weightAvailable === 0, is single destination
+      // else consider as normal route for weight calculation
+      if (!vehicle.weightAvailable) {
+        // return vehicle
+        return {
+          originalRoute: sequence,
+          finalRoute: sequence,
+          originalDistance: totalDistance,
+          finalDistance: totalDistance,
+          isSingleDestination: true
+        }
+      } else {
+        // return vehicle
+        return {
+          originalRoute: sequence,
+          finalRoute: sequence,
+          originalDistance: totalDistance,
+          finalDistance: totalDistance,
+          isSingleDestination: false
+        }
       }
     }
 
@@ -401,7 +415,8 @@ function withinTourInsertion(vehicles: Route[], options: SwapOptions,  fullSavin
       originalRoute: sequence,
       finalRoute: routes,
       originalDistance: currentDistance,
-      finalDistance: distance
+      finalDistance: distance,
+      isSingleDestination: false
     }
   })
   // console.log('Total Count:', totalCount)
@@ -812,4 +827,5 @@ module.exports = {
   withinTourInsertion,
   relocate,
   exchange,
+  populateWeightToSequence
 }

@@ -149,8 +149,18 @@ export default class Main extends Component {
       </div>
     )
   }
-  displaySwappedWithin = ({ finalRoute, originalRoute, finalDistance }, routeIndex) => {
+  displaySwappedWithin = ({ finalRoute, originalRoute, finalDistance, isSingleDestination }, routeIndex) => {
     const divKey = 'displayDivKey2' + routeIndex
+    let totalWeight = 0
+    if (isSingleDestination) {
+      totalWeight = 2000
+    } else {
+      const populated = saving.populateWeightToSequence(finalRoute)
+      totalWeight = populated.reduce((prev, val) => {
+        return prev + val.weight
+      }, 0)
+    }
+    console.log('Total weight:', totalWeight)
     // if (!_.isEqual(originalRoute, finalRoute)) console.log('Index:', originalRoute, finalRoute)
     return (
       <div key={divKey}>
@@ -163,6 +173,7 @@ export default class Main extends Component {
         <span key={'displaySpanKey' + routeIndex + '+1'}>261</span>
         {'\t Total Distance:' + finalDistance}
         {/* {'\t Weight:' + (2000 - Number(weightAvailable))} */}
+        {`\t Weight: ${totalWeight}`}
       </div>
     )
   }

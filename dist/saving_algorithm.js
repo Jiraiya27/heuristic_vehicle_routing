@@ -282,13 +282,28 @@ function withinTourInsertion(vehicles, options, fullSavingsTable) {
         var sequence = flattenRouteWithoutDepot(vehicle.route);
         // no swap for single destination routes
         if (totalLength === 2) {
-            // return vehicle
-            return {
-                originalRoute: sequence,
-                finalRoute: sequence,
-                originalDistance: totalDistance,
-                finalDistance: totalDistance
-            };
+            // if weightAvailable === 0, is single destination
+            // else consider as normal route for weight calculation
+            if (!vehicle.weightAvailable) {
+                // return vehicle
+                return {
+                    originalRoute: sequence,
+                    finalRoute: sequence,
+                    originalDistance: totalDistance,
+                    finalDistance: totalDistance,
+                    isSingleDestination: true
+                };
+            }
+            else {
+                // return vehicle
+                return {
+                    originalRoute: sequence,
+                    finalRoute: sequence,
+                    originalDistance: totalDistance,
+                    finalDistance: totalDistance,
+                    isSingleDestination: false
+                };
+            }
         }
         // swap for half of total possibilities
         // redo if found better solution
@@ -310,7 +325,8 @@ function withinTourInsertion(vehicles, options, fullSavingsTable) {
             originalRoute: sequence,
             finalRoute: routes,
             originalDistance: currentDistance,
-            finalDistance: distance
+            finalDistance: distance,
+            isSingleDestination: false
         };
         var _a;
     });
@@ -706,5 +722,6 @@ module.exports = {
     withinTourInsertion: withinTourInsertion,
     relocate: relocate,
     exchange: exchange,
+    populateWeightToSequence: populateWeightToSequence
 };
 //# sourceMappingURL=saving_algorithm.js.map
